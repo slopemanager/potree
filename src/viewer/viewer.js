@@ -682,6 +682,12 @@ export class Viewer extends EventDispatcher{
 		this.dispatchEvent({'type': 'classifications_changed', 'viewer': this});
 	}
 
+	setSegmentations(segmentations){
+		this.segmentations = segmentations;
+
+		this.dispatchEvent({'type': 'segmentations_changed', 'viewer': this});
+	}
+
 	setClassificationVisibility (key, value) {
 		if (!this.classifications[key]) {
 			this.classifications[key] = {visible: value, name: 'no name'};
@@ -689,6 +695,17 @@ export class Viewer extends EventDispatcher{
 		} else if (this.classifications[key].visible !== value) {
 			this.classifications[key].visible = value;
 			this.dispatchEvent({'type': 'classification_visibility_changed', 'viewer': this});
+		}
+	}
+
+	setSegmentationVisibility (key, value) {
+		if (!this.segmentations[key]) {
+			this.segmentations[key] = {visible: value, name: 'no name'};
+			this.dispatchEvent({'type': 'segmentations_visibility_changed', 'viewer': this});
+		} else if (this.segmentations[key].visible !== value) {
+			console.log(`setSegmentationVisibility: ${key} = ${value}`);
+			this.segmentations[key].visible = value;
+			this.dispatchEvent({'type': 'segmentations_visibility_changed', 'viewer': this});
 		}
 	}
 

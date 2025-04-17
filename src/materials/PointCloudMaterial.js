@@ -4,6 +4,7 @@ import {Utils} from "../utils.js";
 import {Gradients} from "./Gradients.js";
 import {Shaders} from "../../build/shaders/shaders.js";
 import {ClassificationScheme} from "./ClassificationScheme.js";
+import {SegmentationScheme} from "./SegmentationScheme.js";
 import {PointSizeType, PointShape, TreeType, ElevationGradientRepeat} from "../defines.js";
 
 //
@@ -67,12 +68,23 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 			this.classificationTexture = texture;
 		}
 
+		{
+			const [width, height] = [256, 1];
+			let sgdata = new Uint8Array(width * 4);
+			let sgtexture = new THREE.DataTexture(sgdata, width, height, THREE.RGBAFormat);
+			sgtexture.magFilter = THREE.NearestFilter;
+			sgtexture.needsUpdate = true;
+
+			this.segmentationTexture = sgtexture;
+		}
+
 		this.attributes = {
 			position: { type: 'fv', value: [] },
 			color: { type: 'fv', value: [] },
 			normal: { type: 'fv', value: [] },
 			intensity: { type: 'f', value: [] },
 			classification: { type: 'f', value: [] },
+			segmentation: { type: 'f', value: [] },
 			returnNumber: { type: 'f', value: [] },
 			numberOfReturns: { type: 'f', value: [] },
 			pointSourceID: { type: 'f', value: [] },
@@ -112,6 +124,7 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 			pcIndex:			{ type: "f", value: 0 },
 			gradient:			{ type: "t", value: this.gradientTexture },
 			classificationLUT:	{ type: "t", value: this.classificationTexture },
+			segmentationLUT:	{ type: "t", value: this.segmentationTexture },
 			uHQDepthMap:		{ type: "t", value: null },
 			toModel:			{ type: "Matrix4f", value: [] },
 			diffuse:			{ type: "fv", value: [1, 1, 1] },
@@ -153,6 +166,7 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 		};
 
 		this.classification = ClassificationScheme.DEFAULT;
+		this.segmentation = SegmentationScheme.RANDOM;
 
 		this.defaultAttributeValues.normal = [0, 0, 0];
 		this.defaultAttributeValues.classification = [0, 0, 0];
@@ -227,6 +241,7 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 		}
 
 		this.needsUpdate = true;
+		// console.log(fs)
 	}
 
 	getDefines () {
@@ -417,6 +432,70 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 
 		if(valuesChanged){
 			this.classificationTexture.needsUpdate = true;
+
+			this.dispatchEvent({
+				type: 'material_property_changed',
+				target: this
+			});
+		}
+	}
+
+	recomputeSegmentation () {
+		const segmentation = this.segmentation;
+		const data = this.segmentationTexture.image.data;
+
+		let width = 256;
+		const black = [1, 1, 1, 1];
+
+		let valuesChanged = false;
+
+		for (let i = 0; i < width; i++) {
+
+			let color;
+			let visible = true;
+
+			if (segmentation[i]) {
+				color = segmentation[i].color;
+				visible = segmentation[i].visible;
+			} else if (segmentation[i % 32]) {
+				color = segmentation[i % 32].color;
+				visible = segmentation[i % 32].visible;
+			} else if(segmentation.DEFAULT) {
+				color = segmentation.DEFAULT.color;
+				visible = segmentation.DEFAULT.visible;
+			}else{
+				color = black;
+			}
+
+			const r = parseInt(255 * color[0]);
+			const g = parseInt(255 * color[1]);
+			const b = parseInt(255 * color[2]);
+			const a = visible ? parseInt(255 * color[3]) : 0;
+
+
+			if(data[4 * i + 0] !== r){
+				data[4 * i + 0] = r;
+				valuesChanged = true;
+			}
+
+			if(data[4 * i + 1] !== g){
+				data[4 * i + 1] = g;
+				valuesChanged = true;
+			}
+
+			if(data[4 * i + 2] !== b){
+				data[4 * i + 2] = b;
+				valuesChanged = true;
+			}
+
+			if(data[4 * i + 3] !== a){
+				data[4 * i + 3] = a;
+				valuesChanged = true;
+			}
+		}
+
+		if(valuesChanged){
+			this.segmentationTexture.needsUpdate = true;
 
 			this.dispatchEvent({
 				type: 'material_property_changed',

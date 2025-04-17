@@ -9,6 +9,7 @@ attribute vec3 position;
 attribute vec3 color;
 attribute float intensity;
 attribute float classification;
+attribute float segmentation;
 attribute float returnNumber;
 attribute float numberOfReturns;
 attribute float pointSourceID;
@@ -111,6 +112,7 @@ uniform vec3 uShadowColor;
 uniform sampler2D visibleNodes;
 uniform sampler2D gradient;
 uniform sampler2D classificationLUT;
+uniform sampler2D segmentationLUT;
 
 #if defined(color_type_matcap)
 uniform sampler2D matcapTextureUniform;
@@ -446,6 +448,13 @@ vec4 getClassification(){
 	return classColor;
 }
 
+vec4 getSegmentation(){
+	vec2 uv = vec2(segmentation / 255.0, 0.5);
+	vec4 classColor = texture2D(classificationLUT, uv);
+	
+	return classColor;
+}
+
 vec3 getReturns(){
 
 	// 0b 00_000_111
@@ -634,6 +643,9 @@ vec3 getColor(){
 	#elif defined color_type_classification
 		vec4 cl = getClassification(); 
 		color = cl.rgb;
+	#elif defined color_type_segmentation
+		vec4 sg = getSegmentation(); 
+		color = sg.rgb;
 	#elif defined color_type_return_number
 		color = getReturnNumber();
 	#elif defined color_type_returns

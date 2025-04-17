@@ -31,6 +31,7 @@ import {DeviceOrientationControls} from "../navigation/DeviceOrientationControls
 import {VRControls} from "../navigation/VRControls.js";
 import { EventDispatcher } from "../EventDispatcher.js";
 import { ClassificationScheme } from "../materials/ClassificationScheme.js";
+import { SegmentationScheme } from "../materials/SegmentationScheme.js";
 import { VRButton } from '../../libs/three.js/extra/VRButton.js';
 
 import JSON5 from "../../libs/json5-2.1.3/json5.mjs";
@@ -139,6 +140,7 @@ export class Viewer extends EventDispatcher{
 		this.description = "";
 
 		this.classifications = ClassificationScheme.DEFAULT;
+		this.segmentations = SegmentationScheme.RANDOM
 
 		this.moveSpeed = 10;
 
@@ -1269,7 +1271,7 @@ export class Viewer extends EventDispatcher{
 			i18n.init({
 				lng: 'en',
 				resGetPath: Potree.resourcePath + '/lang/__lng__/__ns__.json',
-				preload: ['en', 'fr', 'de', 'jp', 'se', 'es', 'zh', 'it','ca'],
+				preload: ['en', 'fr', 'de', 'jp', 'se', 'es', 'zh', 'it'],
 				getAsync: true,
 				debug: false
 			}, function (t) {
@@ -1646,7 +1648,9 @@ export class Viewer extends EventDispatcher{
 			material.uniforms.uFilterPointSourceIDClipRange.value = this.filterPointSourceIDRange;
 
 			material.classification = this.classifications;
+			material.segmentation = this.segmentations
 			material.recomputeClassification();
+			material.recomputeSegmentation();
 
 			this.updateMaterialDefaults(pointcloud);
 		}

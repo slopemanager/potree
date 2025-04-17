@@ -62,16 +62,17 @@
 			viewer.toggleSidebar();
 		});
 		
-		Potree.loadPointCloud("http://5.9.65.151/mschuetz/potree/resources/pointclouds/opentopography/CA13_1.4/cloud.js", "CA13", function(e){
+			Potree.loadPointCloud("http://localhost:5173/data/sample_segmented/metadata.json", "CA13", function(e){
 			viewer.scene.addPointCloud(e.pointcloud);
+			window.pc = e.pointcloud
 			e.pointcloud.position.z = 0;
 			let material = e.pointcloud.material;
 			material.size = 3;
 			material.pointSizeType = Potree.PointSizeType.FIXED;
 			material.activeAttributeName = "classification";
-			
-			viewer.scene.view.position.set(694274.518, 3916261.987, 348.732);
-			viewer.scene.view.lookAt(694683.097, 3916386.916, 30.879);
+
+			//zoom to cloud
+			viewer.fitToScreen();
 		});
 		
 	</script>

@@ -150,10 +150,8 @@ let attributeLocations = {
 	"normal": {name: "normal", location: 8},
 	"spacing": {name: "spacing", location: 9},
 	"gps-time":  {name: "gpsTime", location: 10},
-	"segmentation1":  {name: "segmentation1", location: 11},
-	"segmentation2":  {name: "segmentation2", location: 12},
-	"segmentation3":  {name: "segmentation3", location: 13},
-	"aExtra":  {name: "aExtra", location: 14},
+	"segmentation":  {name: "segmentation", location: 11},
+	"aExtra":  {name: "aExtra", location: 12},
 };
 
 class Shader {

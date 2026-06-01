@@ -154,17 +154,7 @@ export class NodeLoader {
             bufferAttribute.normalized = true;
             geometry.setAttribute("indices", bufferAttribute);
           } 
-          // SVX custom attr parsing
-          else if (
-            [
-              "Level1",
-              "Level2",
-              "Level3",
-              "segmentation1",
-              "segmentation2",
-              "segmentation3",
-            ].includes(property)
-          ) {
+          else if (property === "segmentation") {
             const bufferAttribute = new THREE.BufferAttribute(
               new Float32Array(buffer),
               1,
@@ -178,24 +168,11 @@ export class NodeLoader {
               range: batchAttribute.range,
             };
 
-            // SVX: Multiple segmentation levels are computed, but only one is chosen
-            // as the segmentation basis. Here we map the chosen segmentation attribute to the
-            // "segmentation" property.
-            // Map either of "segmentation 1", "segmentation 2" to "segmentation"
-            if (property === "Level1") {
-              property = "segmentation1";
-            } else if (property === "Level2") {
-              property = "segmentation2";
-            } else if (property === "Level3") {
-              property = "segmentation3";
+            if (geometry.getAttribute("segmentation")) {
+              continue;
             }
 
-            //  Prefer the editable segmentation attribute
-            // if (window.segmentationAttributeName && property === window.segmentationAttributeName) {
-            //   property = "segmentation";
-            // }
-
-            geometry.setAttribute(property, bufferAttribute);
+            geometry.setAttribute("segmentation", bufferAttribute);
           } else {
             const bufferAttribute = new THREE.BufferAttribute(
               new Float32Array(buffer),

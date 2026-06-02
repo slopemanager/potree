@@ -327,13 +327,9 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 	getDefines () {
 		let defines = [];
 
-		if (this._classificationStyle === "raw") {
-			// 1. Use classification attribute from point's data
-			defines.push('#define classification_raw');
-		} else if (this._classificationStyle === "from_segment") {
-			// 2. Compute classification from segment
-			defines.push('#define classification_from_segment');
-		} 
+		// Fusion mode: always evaluate per-segment overrides with raw fallback in shader.
+		defines.push('#define classification_from_segment');
+
 		// else if (this._classificationStyle === "mixed") {
 		// 	// NOT WORKING
 		// 	// 3. Show segmentation color if no user assigned class 
@@ -534,7 +530,6 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 	recomputeClassification () {
 		const classification = this.classification;
 		const data = this.classificationTexture.image.data;
-		const useLegacyModuloFallback = this._classificationStyle === "raw";
 
 		let width = 65536; // 65536 for 16-bit classification
 		const black = [1, 1, 1, 0];
@@ -549,9 +544,6 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 			if (classification[i]) {
 				color = classification[i].color;
 				visible = classification[i].visible;
-			} else if (useLegacyModuloFallback && classification[i % 32]) {
-				color = classification[i % 32].color;
-				visible = classification[i % 32].visible;
 			} else if(classification.DEFAULT) {
 				color = classification.DEFAULT.color;
 				visible = classification.DEFAULT.visible;

@@ -451,39 +451,29 @@ int imod(int a, int b) {
 }
 
 vec4 getClassification(){
+	float segmentationValue = segmentation;
 
-	// if define classification_raw is used, use the point's classification value
-	#ifdef classification_raw
-		vec2 uv = vec2(classification / 255.0, 0.5);
-		vec4 classColor = texture2D(classificationLUT, uv);
-		return classColor;
-		
-	// Use color based on segment id
-	#else
-		float segmentationValue = segmentation;
+	// Convert to integer ID
+	int id = int(segmentationValue);
 
-		// Convert to integer ID
-		int id = int(segmentationValue);
+	// Compute (x, y) index in 2D texture 
+	int x = imod(id, 256);
+	int y = id / 256;
 
-		// Compute (x, y) index in 2D texture 
-		int x = imod(id, 256);
-		int y = id / 256;
+	// Convert to normalized UV coords
+	vec2 uv = vec2(
+		(float(x) + 0.5) / 256.0,
+		(float(y) + 0.5) / 256.0
+	);
+	vec4 classColor = texture2D(classificationLUT, uv);
 
-		// Convert to normalized UV coords
-		vec2 uv = vec2(
-			(float(x) + 0.5) / 256.0,
-			(float(y) + 0.5) / 256.0
-		);
-		vec4 classColor = texture2D(classificationLUT, uv);
-
-		// Hybrid mode: if no API segment override exists, use raw classification.bin class.
-		if(classColor.a == 0.0){
-			float classValue = clamp(classification, 0.0, 255.0);
-			vec2 classUv = vec2(classValue / 255.0, 0.5);
-			classColor = texture2D(rawClassificationLUT, classUv);
-		}
-		return classColor;
-	#endif
+	// Fusion mode: if no segment override exists, use raw classification.bin class.
+	if(classColor.a == 0.0){
+		float classValue = clamp(classification, 0.0, 255.0);
+		vec2 classUv = vec2(classValue / 255.0, 0.5);
+		classColor = texture2D(rawClassificationLUT, classUv);
+	}
+	return classColor;
 
 }
 

@@ -95,8 +95,8 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 		// Source classification attribute:
 		//  - from point's data, or
 		//  - compute if from segment based on user assignation, or
-		//  - show segmentation color if no user assigned class is available else show user assigned class
-		this._classificationStyle = "from_segment" // "from_segment" | "raw" | "mixed"
+		// Fusion mode: JSON segment overrides with raw classification fallback.
+		this._classificationStyle = "from_segment";
 
 		// Selected segment id: default none
 		this._selectedSegmentId = -1;
@@ -328,14 +328,7 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 		let defines = [];
 
 		// Fusion mode: always evaluate per-segment overrides with raw fallback in shader.
-		defines.push('#define classification_from_segment');
-
-		// else if (this._classificationStyle === "mixed") {
-		// 	// NOT WORKING
-		// 	// 3. Show segmentation color if no user assigned class 
-		// 	// is available else show user assigned class
-		// 	defines.push('#define classification_mixed');
-		// }
+		defines.push('#define classification_fusion');
 
 		if (this.pointSizeType === PointSizeType.FIXED) {
 			defines.push('#define fixed_point_size');

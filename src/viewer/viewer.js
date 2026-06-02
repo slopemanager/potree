@@ -704,11 +704,6 @@ export class Viewer extends EventDispatcher{
 			return;
 		}
 
-		// if not using raw classification style log a warning
-		if (!this.classificationStyle == "raw") {
-			console.warn("Not using raw classification style");
-		}
-
 		this.setClassifications(classifications);
 	}
 

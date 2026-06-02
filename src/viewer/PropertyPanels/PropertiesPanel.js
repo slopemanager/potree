@@ -235,14 +235,6 @@ export class PropertiesPanel{
 					<div class="divider">
 						<span>Classification</span>
 					</div>
-
-					<li>
-						<span>Classification Source:</span>
-						<selectgroup id="classification_style_option">
-							<option id="classification_style_from_segment" value="from_segment">From Segmentation</option>
-							<option id="classification_style_raw" value="raw">From Point Data</option>
-						</selectgroup>
-					</li>
 				</div>
 
 				<div id="materials.gpstime_container">
@@ -860,18 +852,6 @@ export class PropertiesPanel{
 				let current = Object.keys(ElevationGradientRepeat)
 					.filter(key => ElevationGradientRepeat[key] === this.viewer.elevationGradientRepeat);
 				elGradientRepeat.find(`input[value=${current}]`).trigger("click");
-			}
-
-			{
-				let elClassificationStyle = panel.find("#classification_style_option");
-				elClassificationStyle.selectgroup({title: "Classification Source"});
-
-				elClassificationStyle.find("input").click( (e) => {
-					material.classificationStyle = e.target.value;
-				});
-
-				let current = material.classificationStyle;
-				elClassificationStyle.find(`input[value=${current}]`).trigger("click");
 			}
 
 			let onIntensityChange = () => {

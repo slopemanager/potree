@@ -54,7 +54,8 @@ void main() {
 			discard;
 		}
 	#endif
-		
+
+
 	#if defined color_type_indices
 		gl_FragColor = vec4(color, uPCIndex / 255.0);
 	#else

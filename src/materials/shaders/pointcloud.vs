@@ -116,6 +116,8 @@ uniform sampler2D gradient;
 uniform sampler2D classificationLUT;
 uniform sampler2D rawClassificationLUT;
 uniform sampler2D segmentationLUT;
+uniform float selectedSegmentCount;
+uniform float selectedSegmentIds[128];
 
 #if defined(color_type_matcap)
 uniform sampler2D matcapTextureUniform;
@@ -134,6 +136,7 @@ varying float	vLogDepth;
 varying vec3	vViewPosition;
 varying float 	vRadius;
 varying float 	vPointSize;
+varying float vSegmentation;
 
 float round(float number){
 	return floor(number + 0.5);
@@ -938,6 +941,7 @@ void main() {
 
 	// COLOR
 	vColor = getColor();
+	vSegmentation = segmentation;
 
 	#if defined hq_depth_pass
 		float originalDepth = gl_Position.w;
@@ -1028,14 +1032,19 @@ void main() {
 
 	#endif
 
-
-
-	// Segment selection
-	#if defined(selected_segment_id)
-		float segmentationValue = segmentation;
-		if( int(round(segmentationValue)) == selected_segment_id){
-			vColor = vec3(0.5176, 0.7569, 1.0);
-			// vColor.b += 0.5;
+	// Segment selection highlight in vertex shader.
+	if (selectedSegmentCount > 0.0) {
+		float segmentId = floor(segmentation + 0.5);
+		float isSelected = 0.0;
+		for (int i = 0; i < 128; i++) {
+			float enabledMask = step(float(i), selectedSegmentCount - 1.0);
+			float sameId = 1.0 - step(0.5, abs(selectedSegmentIds[i] - segmentId));
+			isSelected = max(isSelected, enabledMask * sameId);
 		}
-	#endif
+
+		if (isSelected > 0.5) {
+			vColor = vec3(0.5176, 0.7569, 1.0);
+		}
+	}
+
 }

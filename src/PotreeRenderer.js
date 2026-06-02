@@ -449,6 +449,17 @@ class Shader {
 		gl.uniform1i(location, value);
 	}
 
+	setUniform1fv(name, value) {
+		let gl = this.gl;
+		let location = this.uniformLocations[name];
+
+		if (location == null) {
+			return;
+		}
+
+		gl.uniform1fv(location, value);
+	}
+
 };
 
 class WebGLTexture {
@@ -1328,6 +1339,8 @@ export class Renderer {
 			shader.setUniform1f("wClassification", material.weightClassification);
 			shader.setUniform1f("wReturnNumber", material.weightReturnNumber);
 			shader.setUniform1f("wSourceID", material.weightSourceID);
+			shader.setUniform1f("selectedSegmentCount", material.uniforms.selectedSegmentCount.value);
+			shader.setUniform1fv("selectedSegmentIds[0]", material.uniforms.selectedSegmentIds.value);
 
 			shader.setUniform("backfaceCulling", material.uniforms.backfaceCulling.value);
 

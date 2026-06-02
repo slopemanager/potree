@@ -7,6 +7,8 @@ import {ClassificationScheme} from "./ClassificationScheme.js";
 import {SegmentationScheme} from "./SegmentationScheme.js";
 import {PointSizeType, PointShape, TreeType, ElevationGradientRepeat} from "../defines.js";
 
+const MAX_SELECTED_SEGMENTS = 128;
+
 //
 // how to calculate the radius of a projected sphere in screen space
 // http://stackoverflow.com/questions/21648630/radius-of-projected-sphere-in-screen-space
@@ -70,7 +72,6 @@ function createRawClassificationTextureMap() {
 	return tex;
 }
 
-
 export class PointCloudMaterial extends THREE.RawShaderMaterial {
 	constructor (parameters = {}) {
 		super();
@@ -94,8 +95,8 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 
 		// Fusion mode: JSON segment overrides with raw classification fallback.
 
-		// Selected segment id: default none
-		this._selectedSegmentId = -1;
+		// Selected segments (for highlight mask)
+		this._selectedSegments = [];
 
 		// Superimpose Classification
 		// When true, the classification color is superimposed on the point color,
@@ -199,6 +200,8 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 			classificationLUT:	{ type: "t", value: this.classificationTexture },
 			rawClassificationLUT:	{ type: "t", value: this.rawClassificationTexture },
 			segmentationLUT:	{ type: "t", value: this.segmentationTexture },
+			selectedSegmentCount:	{ type: "f", value: 0 },
+			selectedSegmentIds:	{ type: "fv", value: new Float32Array(MAX_SELECTED_SEGMENTS).fill(-1) },
 			uHQDepthMap:		{ type: "t", value: null },
 			toModel:			{ type: "Matrix4f", value: [] },
 			diffuse:			{ type: "fv", value: [1, 1, 1] },
@@ -366,10 +369,6 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 			defines.push(value);
 		}
 
-		if (this._selectedSegmentId !== -1) {
-			defines.push('#define selected_segment_id ' + this._selectedSegmentId);
-		}
-
 		if (this._superimposeClassification) {
 			defines.push('#define superimpose_classification');
 		}
@@ -464,19 +463,79 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 	}
 
 	get selectedSegment () {
-		return this._selectedSegmentId;
+		return this._selectedSegments.length > 0 ? this._selectedSegments[0] : -1;
 	}
+
+	get selectedSegments () {
+		return [...this._selectedSegments];
+	}
+
+	setSelectedSegments(segmentIds = []) {
+		const normalized = Array.from(
+			new Set(
+				segmentIds
+					.filter((id) => Number.isFinite(id))
+					.map((id) => Math.trunc(id))
+					.filter((id) => id >= 0 && id < 65536),
+			),
+		).sort((a, b) => a - b);
+
+		const clipped = normalized.slice(0, MAX_SELECTED_SEGMENTS);
+
+		if (
+			clipped.length === this._selectedSegments.length &&
+			clipped.every((value, index) => value === this._selectedSegments[index])
+		) {
+			return;
+		}
+
+		this._selectedSegments = clipped;
+
+		const idsUniform = this.uniforms.selectedSegmentIds.value;
+		for (let i = 0; i < MAX_SELECTED_SEGMENTS; i++) {
+			idsUniform[i] = -1;
+		}
+		for (let i = 0; i < clipped.length; i++) {
+			idsUniform[i] = clipped[i];
+		}
+		this.uniforms.selectedSegmentCount.value = clipped.length;
+		this.uniforms.selectedSegmentIds.needsUpdate = true;
+		this.dispatchEvent({
+			type: 'material_property_changed',
+			target: this,
+		});
+	}
+
+	clearSelectedSegments() {
+		this.setSelectedSegments([]);
+	}
+
+	selectSegments(segmentIds = []) {
+		const next = [...this._selectedSegments, ...segmentIds];
+		this.setSelectedSegments(next);
+	}
+
+	deselectSegments(segmentIds = []) {
+		const removeSet = new Set(
+			segmentIds
+				.filter((id) => Number.isFinite(id))
+				.map((id) => Math.trunc(id)),
+		);
+
+		if (removeSet.size === 0) {
+			return;
+		}
+
+		const next = this._selectedSegments.filter((id) => !removeSet.has(id));
+		this.setSelectedSegments(next);
+	}
+
 	selectSegment(segmentId) {
-		if (this._selectedSegmentId !== segmentId) {
-			this._selectedSegmentId = segmentId;
-			this.updateShaderSource();
-		}
+		this.selectSegments([segmentId]);
 	}
+
 	unselectSegment() {
-		if (this._selectedSegmentId !== -1) {
-			this._selectedSegmentId = -1;
-			this.updateShaderSource();
-		}
+		this.clearSelectedSegments();
 	}
 
 	setSuperimposeClassification(value) {

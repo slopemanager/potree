@@ -534,6 +534,7 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 	recomputeClassification () {
 		const classification = this.classification;
 		const data = this.classificationTexture.image.data;
+		const useLegacyModuloFallback = this._classificationStyle === "raw";
 
 		let width = 65536; // 65536 for 16-bit classification
 		const black = [1, 1, 1, 0];
@@ -548,7 +549,7 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 			if (classification[i]) {
 				color = classification[i].color;
 				visible = classification[i].visible;
-			} else if (classification[i % 32]) {
+			} else if (useLegacyModuloFallback && classification[i % 32]) {
 				color = classification[i % 32].color;
 				visible = classification[i % 32].visible;
 			} else if(classification.DEFAULT) {

@@ -156,8 +156,11 @@ export class HQSplatRenderer{
 				depthMaterial.uniforms.octreeSize.value = octreeSize;
 				depthMaterial.spacing = pointcloud.pcoGeometry.spacing; // * Math.max(...pointcloud.scale.toArray());
 				depthMaterial.classification = material.classification;
+				depthMaterial.rawClassification = material.rawClassification;
 				depthMaterial.uniforms.classificationLUT.value.image.data = material.uniforms.classificationLUT.value.image.data;
 				depthMaterial.classificationTexture.needsUpdate = true;
+				depthMaterial.uniforms.rawClassificationLUT.value.image.data = material.uniforms.rawClassificationLUT.value.image.data;
+				depthMaterial.rawClassificationTexture.needsUpdate = true;
 
 				depthMaterial.uniforms.uFilterReturnNumberRange.value = material.uniforms.uFilterReturnNumberRange.value;
 				depthMaterial.uniforms.uFilterNumberOfReturnsRange.value = material.uniforms.uFilterNumberOfReturnsRange.value;
@@ -199,8 +202,11 @@ export class HQSplatRenderer{
 				attributeMaterial.uniforms.octreeSize.value = octreeSize;
 				attributeMaterial.spacing = pointcloud.pcoGeometry.spacing; // * Math.max(...pointcloud.scale.toArray());
 				attributeMaterial.classification = material.classification;
+				attributeMaterial.rawClassification = material.rawClassification;
 				attributeMaterial.uniforms.classificationLUT.value.image.data = material.uniforms.classificationLUT.value.image.data;
 				attributeMaterial.classificationTexture.needsUpdate = true;
+				attributeMaterial.uniforms.rawClassificationLUT.value.image.data = material.uniforms.rawClassificationLUT.value.image.data;
+				attributeMaterial.rawClassificationTexture.needsUpdate = true;
 
 				attributeMaterial.uniforms.uFilterReturnNumberRange.value = material.uniforms.uFilterReturnNumberRange.value;
 				attributeMaterial.uniforms.uFilterNumberOfReturnsRange.value = material.uniforms.uFilterNumberOfReturnsRange.value;

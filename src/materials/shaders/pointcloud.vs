@@ -114,6 +114,7 @@ uniform vec3 uShadowColor;
 uniform sampler2D visibleNodes;
 uniform sampler2D gradient;
 uniform sampler2D classificationLUT;
+uniform sampler2D rawClassificationLUT;
 uniform sampler2D segmentationLUT;
 
 #if defined(color_type_matcap)
@@ -475,10 +476,12 @@ vec4 getClassification(){
 		);
 		vec4 classColor = texture2D(classificationLUT, uv);
 
-		// // If classification does not exist, use white
-		// if(classColor.a == 0.0){
-		// 	classColor = vec4(1.0);
-		// }
+		// Hybrid mode: if no API segment override exists, use raw classification.bin class.
+		if(classColor.a == 0.0){
+			float classValue = clamp(classification, 0.0, 255.0);
+			vec2 classUv = vec2(classValue / 255.0, 0.5);
+			classColor = texture2D(rawClassificationLUT, classUv);
+		}
 		return classColor;
 	#endif
 
@@ -499,8 +502,8 @@ vec4 getSegmentation(){
 		// vec4 classColor = texture2D(classificationLUT, vec2(segmentation, 0.0));
 		vec4 classColor = getClassification();
 
-		// If class color[0,2] = default[0,2]=[0.5, 0.5, 0.5], use segmentation color
-		if(classColor.r == 1.0 && classColor.g == 1.0 && classColor.b == 1.0){
+		// Use segmentation color only when no classification color exists.
+		if(classColor.a == 0.0 || (classColor.r == 1.0 && classColor.g == 1.0 && classColor.b == 1.0)){
 			classColor = texture2D(segmentationLUT, vec2(u, 0.0));
 		}
 		return classColor;

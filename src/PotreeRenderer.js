@@ -1363,6 +1363,12 @@ export class Renderer {
 			gl.bindTexture(classificationTexture.target, classificationTexture.id);
 			currentTextureBindingPoint++;
 
+			let rawClassificationTexture = this.textures.get(material.rawClassificationTexture);
+			shader.setUniform1i("rawClassificationLUT", currentTextureBindingPoint);
+			gl.activeTexture(gl.TEXTURE0 + currentTextureBindingPoint);
+			gl.bindTexture(rawClassificationTexture.target, rawClassificationTexture.id);
+			currentTextureBindingPoint++;
+
 			let segmentationTexture = this.textures.get(material.segmentationTexture);
 			shader.setUniform1i("segmentationLUT", currentTextureBindingPoint);
 			gl.activeTexture(gl.TEXTURE0 + currentTextureBindingPoint);

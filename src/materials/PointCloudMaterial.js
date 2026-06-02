@@ -23,11 +23,11 @@ function createClassificationTextureMap() {
 	// Make sure data array is correct length (RGB per segment)
 	const colorData = new Uint8Array(texWidth * texHeight * 4); // RGBA
 	for (let i = 0; i < texWidth * texHeight; i++) {
-		// Set default color to white
+		// Keep empty segment overrides transparent so shader can fall back to raw class LUT.
 		colorData[i * 4 + 0] = 0; // R
 		colorData[i * 4 + 1] = 0; // G
 		colorData[i * 4 + 2] = 0; // B
-		colorData[i * 4 + 3] = 1; // A
+		colorData[i * 4 + 3] = 0; // A
 	}
 	// Create DataTexture
 	const classColorTex = new THREE.DataTexture(
@@ -42,6 +42,32 @@ function createClassificationTextureMap() {
 	classColorTex.needsUpdate = true;
 
 	return classColorTex;
+}
+
+function createRawClassificationTextureMap() {
+	const texWidth = 256;
+	const texHeight = 1;
+
+	const colorData = new Uint8Array(texWidth * texHeight * 4);
+	for (let i = 0; i < texWidth * texHeight; i++) {
+		colorData[i * 4 + 0] = 255;
+		colorData[i * 4 + 1] = 255;
+		colorData[i * 4 + 2] = 255;
+		colorData[i * 4 + 3] = 255;
+	}
+
+	const tex = new THREE.DataTexture(
+		colorData,
+		texWidth,
+		texHeight,
+		THREE.RGBAFormat
+	);
+
+	tex.minFilter = THREE.NearestFilter;
+	tex.magFilter = THREE.NearestFilter;
+	tex.needsUpdate = true;
+
+	return tex;
 }
 
 
@@ -116,6 +142,10 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 			this.classificationTexture = texture;
 		}
 		{
+			const rawTexture = createRawClassificationTextureMap();
+			this.rawClassificationTexture = rawTexture;
+		}
+		{
 			const [width, height] = [256, 1];
 			let sgdata = new Uint8Array(width * 4);
 			let sgtexture = new THREE.DataTexture(sgdata, width, height, THREE.RGBAFormat);
@@ -171,6 +201,7 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 			pcIndex:			{ type: "f", value: 0 },
 			gradient:			{ type: "t", value: this.gradientTexture },
 			classificationLUT:	{ type: "t", value: this.classificationTexture },
+			rawClassificationLUT:	{ type: "t", value: this.rawClassificationTexture },
 			segmentationLUT:	{ type: "t", value: this.segmentationTexture },
 			uHQDepthMap:		{ type: "t", value: null },
 			toModel:			{ type: "Matrix4f", value: [] },
@@ -214,6 +245,7 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 		};
 
 		this.classification = ClassificationScheme.DEFAULT;
+		this.rawClassification = ClassificationScheme.DEFAULT;
 		this.segmentation = SegmentationScheme.DEFAULT;
 
 		this.defaultAttributeValues.normal = [0, 0, 0];
@@ -504,7 +536,7 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 		const data = this.classificationTexture.image.data;
 
 		let width = 65536; // 65536 for 16-bit classification
-		const black = [1, 1, 1, 1];
+		const black = [1, 1, 1, 0];
 
 		let valuesChanged = false;
 
@@ -555,6 +587,70 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 
 		if(valuesChanged){
 			this.classificationTexture.needsUpdate = true;
+
+			this.dispatchEvent({
+				type: 'material_property_changed',
+				target: this
+			});
+		}
+	}
+
+	recomputeRawClassification () {
+		const classification = this.rawClassification;
+		const data = this.rawClassificationTexture.image.data;
+
+		let width = 256;
+		const black = [1, 1, 1, 1];
+
+		let valuesChanged = false;
+
+		for (let i = 0; i < width; i++) {
+
+			let color;
+			let visible = true;
+
+			if (classification[i]) {
+				color = classification[i].color;
+				visible = classification[i].visible;
+			} else if (classification[i % 32]) {
+				color = classification[i % 32].color;
+				visible = classification[i % 32].visible;
+			} else if(classification.DEFAULT) {
+				color = classification.DEFAULT.color;
+				visible = classification.DEFAULT.visible;
+			}else{
+				color = black;
+			}
+
+			const r = parseInt(255 * color[0]);
+			const g = parseInt(255 * color[1]);
+			const b = parseInt(255 * color[2]);
+			const a = visible ? parseInt(255 * color[3]) : 0;
+
+
+			if(data[4 * i + 0] !== r){
+				data[4 * i + 0] = r;
+				valuesChanged = true;
+			}
+
+			if(data[4 * i + 1] !== g){
+				data[4 * i + 1] = g;
+				valuesChanged = true;
+			}
+
+			if(data[4 * i + 2] !== b){
+				data[4 * i + 2] = b;
+				valuesChanged = true;
+			}
+
+			if(data[4 * i + 3] !== a){
+				data[4 * i + 3] = a;
+				valuesChanged = true;
+			}
+		}
+
+		if(valuesChanged){
+			this.rawClassificationTexture.needsUpdate = true;
 
 			this.dispatchEvent({
 				type: 'material_property_changed',

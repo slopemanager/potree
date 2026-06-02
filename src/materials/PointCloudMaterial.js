@@ -92,11 +92,7 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 		let maxSize = getValid(parameters.maxSize, 50.0);
 		let treeType = getValid(parameters.treeType, TreeType.OCTREE);
 
-		// Source classification attribute:
-		//  - from point's data, or
-		//  - compute if from segment based on user assignation, or
 		// Fusion mode: JSON segment overrides with raw classification fallback.
-		this._classificationStyle = "from_segment";
 
 		// Selected segment id: default none
 		this._selectedSegmentId = -1;
@@ -491,17 +487,6 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 				return;
 			}
 			this._superimposeClassification = value;
-			this.updateShaderSource();
-		}
-	}
-
-	get classificationStyle () {
-		return this._classificationStyle;
-	}
-
-	set classificationStyle (value) {
-		if (this._classificationStyle !== value) {
-			this._classificationStyle = value;
 			this.updateShaderSource();
 		}
 	}

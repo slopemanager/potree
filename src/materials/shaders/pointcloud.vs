@@ -3,6 +3,8 @@ precision highp float;
 precision highp int;
 
 #define max_clip_polygons 8
+#define max_lasso_class_overrides 32
+#define max_lasso_polygon_vertices 8
 #define PI 3.141592653589793
 
 attribute vec3 position;
@@ -118,6 +120,12 @@ uniform sampler2D rawClassificationLUT;
 uniform sampler2D segmentationLUT;
 uniform float selectedSegmentCount;
 uniform float selectedSegmentIds[128];
+uniform float lassoOverrideCount;
+uniform float lassoOverrideClassIds[max_lasso_class_overrides];
+uniform float lassoOverrideSequences[max_lasso_class_overrides];
+uniform int lassoOverrideVCount[max_lasso_class_overrides];
+uniform vec2 lassoOverrideVertices[max_lasso_class_overrides * max_lasso_polygon_vertices];
+uniform mat4 lassoOverrideWVP[max_lasso_class_overrides];
 
 #if defined(color_type_matcap)
 uniform sampler2D matcapTextureUniform;
@@ -453,8 +461,70 @@ int imod(int a, int b) {
 	return a - b * (a / b);
 }
 
+vec4 lookupRawClassification(float classValue){
+	float clamped = clamp(classValue, 0.0, 255.0);
+	vec2 classUv = vec2(clamped / 255.0, 0.5);
+	return texture2D(rawClassificationLUT, classUv);
+}
+
+bool pointInLassoOverride(vec3 worldPoint, int overrideIdx) {
+	vec4 pointNDC = lassoOverrideWVP[overrideIdx] * vec4(worldPoint, 1.0);
+	pointNDC.xy = pointNDC.xy / pointNDC.w;
+
+	int count = lassoOverrideVCount[overrideIdx];
+	if(count < 3){
+		return false;
+	}
+
+	int j = count - 1;
+	bool c = false;
+	for(int i = 0; i < max_lasso_polygon_vertices; i++) {
+		if(i == count) {
+			break;
+		}
+
+		vec2 verti = lassoOverrideVertices[overrideIdx * max_lasso_polygon_vertices + i];
+		vec2 vertj = lassoOverrideVertices[overrideIdx * max_lasso_polygon_vertices + j];
+
+		if( ((verti.y > pointNDC.y) != (vertj.y > pointNDC.y)) &&
+			(pointNDC.x < (vertj.x-verti.x) * (pointNDC.y-verti.y) / (vertj.y-verti.y) + verti.x) ) {
+			c = !c;
+		}
+		j = i;
+	}
+
+	return c;
+}
+
 vec4 getClassification(){
 	float segmentationValue = segmentation;
+	vec3 worldPoint = (modelMatrix * vec4(position, 1.0)).xyz;
+
+	float bestSequence = -1.0;
+	float overrideClassId = -2.0;
+
+	if (lassoOverrideCount > 0.0) {
+		for (int i = 0; i < max_lasso_class_overrides; i++) {
+			float enabledMask = step(float(i), lassoOverrideCount - 1.0);
+			if (enabledMask < 0.5) {
+				continue;
+			}
+
+			if (!pointInLassoOverride(worldPoint, i)) {
+				continue;
+			}
+
+			float sequence = lassoOverrideSequences[i];
+			if (sequence >= bestSequence) {
+				bestSequence = sequence;
+				overrideClassId = lassoOverrideClassIds[i];
+			}
+		}
+
+		if (overrideClassId >= 0.0) {
+			return lookupRawClassification(overrideClassId);
+		}
+	}
 
 	// Convert to integer ID
 	int id = int(segmentationValue);
@@ -472,9 +542,7 @@ vec4 getClassification(){
 
 	// Fusion mode: if no segment override exists, use raw classification.bin class.
 	if(classColor.a == 0.0){
-		float classValue = clamp(classification, 0.0, 255.0);
-		vec2 classUv = vec2(classValue / 255.0, 0.5);
-		classColor = texture2D(rawClassificationLUT, classUv);
+		classColor = lookupRawClassification(classification);
 	}
 	return classColor;
 

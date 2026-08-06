@@ -8,6 +8,8 @@ import {SegmentationScheme} from "./SegmentationScheme.js";
 import {PointSizeType, PointShape, TreeType, ElevationGradientRepeat} from "../defines.js";
 
 const MAX_SELECTED_SEGMENTS = 128;
+const MAX_LASSO_CLASS_OVERRIDES = 32;
+const MAX_LASSO_POLYGON_VERTICES = 8;
 
 //
 // how to calculate the radius of a projected sphere in screen space
@@ -70,6 +72,84 @@ function createRawClassificationTextureMap() {
 	tex.needsUpdate = true;
 
 	return tex;
+}
+
+function normalizeLassoClassOverrideEntries(entries = []) {
+	if (!Array.isArray(entries) || entries.length === 0) {
+		return [];
+	}
+
+	const normalized = [];
+	for (const entry of entries) {
+		const safeEntry = entry || {};
+		const sequence = Math.trunc(Number(safeEntry.sequence));
+		const classId = Math.trunc(Number(safeEntry.classId));
+		const viewMatrix = Array.isArray(safeEntry.viewMatrix) ? safeEntry.viewMatrix : [];
+		const projectionMatrix = Array.isArray(safeEntry.projectionMatrix) ? safeEntry.projectionMatrix : [];
+		const polygonNdc = Array.isArray(safeEntry.polygonNdc) ? safeEntry.polygonNdc : [];
+
+		if (!Number.isFinite(sequence) || sequence <= 0) {
+			continue;
+		}
+
+		if (!Number.isFinite(classId) || classId < -1 || classId > 255) {
+			continue;
+		}
+
+		if (
+			viewMatrix.length !== 16 ||
+			projectionMatrix.length !== 16 ||
+			viewMatrix.some((value) => !Number.isFinite(Number(value))) ||
+			projectionMatrix.some((value) => !Number.isFinite(Number(value)))
+		) {
+			continue;
+		}
+
+		const clampedPolygon = [];
+		for (const point of polygonNdc) {
+			const safePoint = point || {};
+			const x = Number(safePoint.x);
+			const y = Number(safePoint.y);
+			if (!Number.isFinite(x) || !Number.isFinite(y)) {
+				continue;
+			}
+
+			clampedPolygon.push({
+				x: Math.max(-1, Math.min(1, x)),
+				y: Math.max(-1, Math.min(1, y)),
+			});
+		}
+
+		if (clampedPolygon.length < 3) {
+			continue;
+		}
+
+		let normalizedPolygon = clampedPolygon;
+		if (clampedPolygon.length > MAX_LASSO_POLYGON_VERTICES) {
+			normalizedPolygon = [];
+			const step = clampedPolygon.length / MAX_LASSO_POLYGON_VERTICES;
+			for (let i = 0; i < MAX_LASSO_POLYGON_VERTICES; i++) {
+				const index = Math.min(clampedPolygon.length - 1, Math.floor(i * step));
+				normalizedPolygon.push(clampedPolygon[index]);
+			}
+		}
+
+		normalized.push({
+			sequence,
+			classId,
+			viewMatrix: viewMatrix.map((value) => Number(value)),
+			projectionMatrix: projectionMatrix.map((value) => Number(value)),
+			polygonNdc: normalizedPolygon,
+		});
+	}
+
+	normalized.sort((a, b) => a.sequence - b.sequence);
+
+	if (normalized.length <= MAX_LASSO_CLASS_OVERRIDES) {
+		return normalized;
+	}
+
+	return normalized.slice(normalized.length - MAX_LASSO_CLASS_OVERRIDES);
 }
 
 export class PointCloudMaterial extends THREE.RawShaderMaterial {
@@ -202,6 +282,12 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 			segmentationLUT:	{ type: "t", value: this.segmentationTexture },
 			selectedSegmentCount:	{ type: "f", value: 0 },
 			selectedSegmentIds:	{ type: "fv", value: new Float32Array(MAX_SELECTED_SEGMENTS).fill(-1) },
+			lassoOverrideCount:	{ type: "f", value: 0 },
+			lassoOverrideClassIds:	{ type: "fv", value: new Float32Array(MAX_LASSO_CLASS_OVERRIDES).fill(-1) },
+			lassoOverrideSequences:	{ type: "fv", value: new Float32Array(MAX_LASSO_CLASS_OVERRIDES).fill(-1) },
+			lassoOverrideVCount:	{ type: "iv", value: new Int32Array(MAX_LASSO_CLASS_OVERRIDES).fill(0) },
+			lassoOverrideVertices:	{ type: "fv", value: new Float32Array(MAX_LASSO_CLASS_OVERRIDES * MAX_LASSO_POLYGON_VERTICES * 2).fill(0) },
+			lassoOverrideWVP:	{ type: "Matrix4fv", value: new Float32Array(MAX_LASSO_CLASS_OVERRIDES * 16).fill(0) },
 			uHQDepthMap:		{ type: "t", value: null },
 			toModel:			{ type: "Matrix4f", value: [] },
 			diffuse:			{ type: "fv", value: [1, 1, 1] },
@@ -508,6 +594,56 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 
 	clearSelectedSegments() {
 		this.setSelectedSegments([]);
+	}
+
+	setLassoClassOverrides(entries = []) {
+		const normalized = normalizeLassoClassOverrideEntries(entries);
+
+		const classIds = this.uniforms.lassoOverrideClassIds.value;
+		const sequences = this.uniforms.lassoOverrideSequences.value;
+		const vertexCounts = this.uniforms.lassoOverrideVCount.value;
+		const vertices = this.uniforms.lassoOverrideVertices.value;
+		const wvpValues = this.uniforms.lassoOverrideWVP.value;
+
+		classIds.fill(-1);
+		sequences.fill(-1);
+		vertexCounts.fill(0);
+		vertices.fill(0);
+		wvpValues.fill(0);
+
+		for (let i = 0; i < normalized.length; i++) {
+			const entry = normalized[i];
+			classIds[i] = entry.classId;
+			sequences[i] = entry.sequence;
+
+			const view = new THREE.Matrix4().fromArray(entry.viewMatrix);
+			const projection = new THREE.Matrix4().fromArray(entry.projectionMatrix);
+			const wvp = new THREE.Matrix4().multiplyMatrices(projection, view);
+			wvpValues.set(wvp.elements, i * 16);
+
+			const polygon = entry.polygonNdc;
+			vertexCounts[i] = polygon.length;
+			for (let j = 0; j < polygon.length && j < MAX_LASSO_POLYGON_VERTICES; j++) {
+				const targetIndex = (i * MAX_LASSO_POLYGON_VERTICES + j) * 2;
+				vertices[targetIndex + 0] = polygon[j].x;
+				vertices[targetIndex + 1] = polygon[j].y;
+			}
+		}
+
+		this.uniforms.lassoOverrideCount.value = normalized.length;
+		this.uniforms.lassoOverrideClassIds.needsUpdate = true;
+		this.uniforms.lassoOverrideSequences.needsUpdate = true;
+		this.uniforms.lassoOverrideVCount.needsUpdate = true;
+		this.uniforms.lassoOverrideVertices.needsUpdate = true;
+		this.uniforms.lassoOverrideWVP.needsUpdate = true;
+		this.dispatchEvent({
+			type: 'material_property_changed',
+			target: this,
+		});
+	}
+
+	clearLassoClassOverrides() {
+		this.setLassoClassOverrides([]);
 	}
 
 	selectSegments(segmentIds = []) {

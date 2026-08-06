@@ -1341,6 +1341,34 @@ export class Renderer {
 			shader.setUniform1f("wSourceID", material.weightSourceID);
 			shader.setUniform1f("selectedSegmentCount", material.uniforms.selectedSegmentCount.value);
 			shader.setUniform1fv("selectedSegmentIds[0]", material.uniforms.selectedSegmentIds.value);
+			shader.setUniform1f("lassoOverrideCount", material.uniforms.lassoOverrideCount.value);
+			shader.setUniform1fv("lassoOverrideClassIds[0]", material.uniforms.lassoOverrideClassIds.value);
+			shader.setUniform1fv("lassoOverrideSequences[0]", material.uniforms.lassoOverrideSequences.value);
+
+			const lassoOverrideVCountLocation = shader.uniformLocations["lassoOverrideVCount[0]"];
+			if (lassoOverrideVCountLocation !== undefined && lassoOverrideVCountLocation !== null) {
+				gl.uniform1iv(
+					lassoOverrideVCountLocation,
+					material.uniforms.lassoOverrideVCount.value,
+				);
+			}
+
+			const lassoOverrideVerticesLocation = shader.uniformLocations["lassoOverrideVertices[0]"];
+			if (lassoOverrideVerticesLocation !== undefined && lassoOverrideVerticesLocation !== null) {
+				gl.uniform2fv(
+					lassoOverrideVerticesLocation,
+					material.uniforms.lassoOverrideVertices.value,
+				);
+			}
+
+			const lassoOverrideWVPLocation = shader.uniformLocations["lassoOverrideWVP[0]"];
+			if (lassoOverrideWVPLocation !== undefined && lassoOverrideWVPLocation !== null) {
+				gl.uniformMatrix4fv(
+					lassoOverrideWVPLocation,
+					false,
+					material.uniforms.lassoOverrideWVP.value,
+				);
+			}
 
 			shader.setUniform("backfaceCulling", material.uniforms.backfaceCulling.value);
 

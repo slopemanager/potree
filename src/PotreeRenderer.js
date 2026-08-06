@@ -1353,21 +1353,22 @@ export class Renderer {
 				);
 			}
 
-			const lassoOverrideVerticesLocation = shader.uniformLocations["lassoOverrideVertices[0]"];
-			if (lassoOverrideVerticesLocation !== undefined && lassoOverrideVerticesLocation !== null) {
-				gl.uniform2fv(
-					lassoOverrideVerticesLocation,
-					material.uniforms.lassoOverrideVertices.value,
-				);
+			const lassoOverrideVerticesTex = this.textures.get(material.lassoOverrideVerticesTexture);
+			if (lassoOverrideVerticesTex) {
+				shader.setUniform1f("lassoOverrideVerticesTexWidth", material.uniforms.lassoOverrideVerticesTexWidth.value);
+				shader.setUniform1i("lassoOverrideVerticesTex", currentTextureBindingPoint);
+				gl.activeTexture(gl.TEXTURE0 + currentTextureBindingPoint);
+				gl.bindTexture(lassoOverrideVerticesTex.target, lassoOverrideVerticesTex.id);
+				currentTextureBindingPoint++;
 			}
 
-			const lassoOverrideWVPLocation = shader.uniformLocations["lassoOverrideWVP[0]"];
-			if (lassoOverrideWVPLocation !== undefined && lassoOverrideWVPLocation !== null) {
-				gl.uniformMatrix4fv(
-					lassoOverrideWVPLocation,
-					false,
-					material.uniforms.lassoOverrideWVP.value,
-				);
+			const lassoOverrideWVPTex = this.textures.get(material.lassoOverrideWVPTexture);
+			if (lassoOverrideWVPTex) {
+				shader.setUniform1f("lassoOverrideWVPTexWidth", material.uniforms.lassoOverrideWVPTexWidth.value);
+				shader.setUniform1i("lassoOverrideWVPTex", currentTextureBindingPoint);
+				gl.activeTexture(gl.TEXTURE0 + currentTextureBindingPoint);
+				gl.bindTexture(lassoOverrideWVPTex.target, lassoOverrideWVPTex.id);
+				currentTextureBindingPoint++;
 			}
 
 			shader.setUniform("backfaceCulling", material.uniforms.backfaceCulling.value);

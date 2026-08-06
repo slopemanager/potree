@@ -3,9 +3,12 @@ precision highp float;
 precision highp int;
 
 #define max_clip_polygons 8
-#define max_lasso_class_overrides 32
-#define max_lasso_polygon_vertices 8
+#define max_lasso_class_overrides 8
 #define PI 3.141592653589793
+
+#ifndef max_lasso_polygon_vertices
+#define max_lasso_polygon_vertices 512
+#endif
 
 attribute vec3 position;
 attribute vec3 color;
@@ -124,8 +127,10 @@ uniform float lassoOverrideCount;
 uniform float lassoOverrideClassIds[max_lasso_class_overrides];
 uniform float lassoOverrideSequences[max_lasso_class_overrides];
 uniform int lassoOverrideVCount[max_lasso_class_overrides];
-uniform vec2 lassoOverrideVertices[max_lasso_class_overrides * max_lasso_polygon_vertices];
-uniform mat4 lassoOverrideWVP[max_lasso_class_overrides];
+uniform sampler2D lassoOverrideVerticesTex;
+uniform float lassoOverrideVerticesTexWidth;
+uniform sampler2D lassoOverrideWVPTex;
+uniform float lassoOverrideWVPTexWidth;
 
 #if defined(color_type_matcap)
 uniform sampler2D matcapTextureUniform;
@@ -467,8 +472,25 @@ vec4 lookupRawClassification(float classValue){
 	return texture2D(rawClassificationLUT, classUv);
 }
 
+vec2 getLassoOverrideVertexNDC(int overrideIdx, int vertexIdx) {
+	int flatIndex = overrideIdx * max_lasso_polygon_vertices + vertexIdx;
+	float u = (float(flatIndex) + 0.5) / lassoOverrideVerticesTexWidth;
+	return texture2D(lassoOverrideVerticesTex, vec2(u, 0.5)).xy;
+}
+
+mat4 getLassoOverrideWVP(int overrideIdx) {
+	float base = float(overrideIdx * 4);
+	float invWidth = 1.0 / lassoOverrideWVPTexWidth;
+	vec4 c0 = texture2D(lassoOverrideWVPTex, vec2((base + 0.5) * invWidth, 0.5));
+	vec4 c1 = texture2D(lassoOverrideWVPTex, vec2((base + 1.5) * invWidth, 0.5));
+	vec4 c2 = texture2D(lassoOverrideWVPTex, vec2((base + 2.5) * invWidth, 0.5));
+	vec4 c3 = texture2D(lassoOverrideWVPTex, vec2((base + 3.5) * invWidth, 0.5));
+	return mat4(c0, c1, c2, c3);
+}
+
 bool pointInLassoOverride(vec3 worldPoint, int overrideIdx) {
-	vec4 pointNDC = lassoOverrideWVP[overrideIdx] * vec4(worldPoint, 1.0);
+	mat4 overrideWVP = getLassoOverrideWVP(overrideIdx);
+	vec4 pointNDC = overrideWVP * vec4(worldPoint, 1.0);
 	pointNDC.xy = pointNDC.xy / pointNDC.w;
 
 	int count = lassoOverrideVCount[overrideIdx];
@@ -483,8 +505,8 @@ bool pointInLassoOverride(vec3 worldPoint, int overrideIdx) {
 			break;
 		}
 
-		vec2 verti = lassoOverrideVertices[overrideIdx * max_lasso_polygon_vertices + i];
-		vec2 vertj = lassoOverrideVertices[overrideIdx * max_lasso_polygon_vertices + j];
+		vec2 verti = getLassoOverrideVertexNDC(overrideIdx, i);
+		vec2 vertj = getLassoOverrideVertexNDC(overrideIdx, j);
 
 		if( ((verti.y > pointNDC.y) != (vertj.y > pointNDC.y)) &&
 			(pointNDC.x < (vertj.x-verti.x) * (pointNDC.y-verti.y) / (vertj.y-verti.y) + verti.x) ) {

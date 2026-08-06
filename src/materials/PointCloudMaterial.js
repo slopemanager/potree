@@ -8,8 +8,8 @@ import {SegmentationScheme} from "./SegmentationScheme.js";
 import {PointSizeType, PointShape, TreeType, ElevationGradientRepeat} from "../defines.js";
 
 const MAX_SELECTED_SEGMENTS = 128;
-const MAX_LASSO_CLASS_OVERRIDES = 32;
-const MAX_LASSO_POLYGON_VERTICES = 8;
+const MAX_LASSO_CLASS_OVERRIDES = 8;
+const DEFAULT_MAX_LASSO_POLYGON_VERTICES = 512;
 
 //
 // how to calculate the radius of a projected sphere in screen space
@@ -74,7 +74,49 @@ function createRawClassificationTextureMap() {
 	return tex;
 }
 
-function normalizeLassoClassOverrideEntries(entries = []) {
+function createLassoOverrideVerticesTextureMap(maxLassoPolygonVertices = DEFAULT_MAX_LASSO_POLYGON_VERTICES) {
+	const texWidth = MAX_LASSO_CLASS_OVERRIDES * maxLassoPolygonVertices;
+	const texHeight = 1;
+	const data = new Float32Array(texWidth * texHeight * 4);
+
+	const tex = new THREE.DataTexture(
+		data,
+		texWidth,
+		texHeight,
+		THREE.RGBAFormat,
+		THREE.FloatType,
+	);
+
+	tex.minFilter = THREE.NearestFilter;
+	tex.magFilter = THREE.NearestFilter;
+	tex.generateMipmaps = false;
+	tex.needsUpdate = true;
+
+	return tex;
+}
+
+function createLassoOverrideWVPTextureMap() {
+	const texWidth = MAX_LASSO_CLASS_OVERRIDES * 4;
+	const texHeight = 1;
+	const data = new Float32Array(texWidth * texHeight * 4);
+
+	const tex = new THREE.DataTexture(
+		data,
+		texWidth,
+		texHeight,
+		THREE.RGBAFormat,
+		THREE.FloatType,
+	);
+
+	tex.minFilter = THREE.NearestFilter;
+	tex.magFilter = THREE.NearestFilter;
+	tex.generateMipmaps = false;
+	tex.needsUpdate = true;
+
+	return tex;
+}
+
+function normalizeLassoClassOverrideEntries(entries = [], maxLassoPolygonVertices = DEFAULT_MAX_LASSO_POLYGON_VERTICES) {
 	if (!Array.isArray(entries) || entries.length === 0) {
 		return [];
 	}
@@ -124,14 +166,8 @@ function normalizeLassoClassOverrideEntries(entries = []) {
 			continue;
 		}
 
-		let normalizedPolygon = clampedPolygon;
-		if (clampedPolygon.length > MAX_LASSO_POLYGON_VERTICES) {
-			normalizedPolygon = [];
-			const step = clampedPolygon.length / MAX_LASSO_POLYGON_VERTICES;
-			for (let i = 0; i < MAX_LASSO_POLYGON_VERTICES; i++) {
-				const index = Math.min(clampedPolygon.length - 1, Math.floor(i * step));
-				normalizedPolygon.push(clampedPolygon[index]);
-			}
+		if (clampedPolygon.length > maxLassoPolygonVertices) {
+			continue;
 		}
 
 		normalized.push({
@@ -139,7 +175,7 @@ function normalizeLassoClassOverrideEntries(entries = []) {
 			classId,
 			viewMatrix: viewMatrix.map((value) => Number(value)),
 			projectionMatrix: projectionMatrix.map((value) => Number(value)),
-			polygonNdc: normalizedPolygon,
+			polygonNdc: clampedPolygon,
 		});
 	}
 
@@ -171,7 +207,17 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 		let pointSize = getValid(parameters.size, 1.0);
 		let minSize = getValid(parameters.minSize, 2.0);
 		let maxSize = getValid(parameters.maxSize, 50.0);
+		let maxLassoPolygonVertices = getValid(
+			parameters.maxLassoPolygonVertices,
+			DEFAULT_MAX_LASSO_POLYGON_VERTICES,
+		);
+		maxLassoPolygonVertices = Math.trunc(Number(maxLassoPolygonVertices));
+		if (!Number.isFinite(maxLassoPolygonVertices) || maxLassoPolygonVertices < 3) {
+			maxLassoPolygonVertices = DEFAULT_MAX_LASSO_POLYGON_VERTICES;
+		}
 		let treeType = getValid(parameters.treeType, TreeType.OCTREE);
+
+		this.maxLassoPolygonVertices = maxLassoPolygonVertices;
 
 		// Fusion mode: JSON segment overrides with raw classification fallback.
 
@@ -231,6 +277,12 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 
 			this.segmentationTexture = sgtexture;
 		}
+		{
+			this.lassoOverrideVerticesTexture = createLassoOverrideVerticesTextureMap(this.maxLassoPolygonVertices);
+		}
+		{
+			this.lassoOverrideWVPTexture = createLassoOverrideWVPTextureMap();
+		}
 
 		this.attributes = {
 			position: { type: 'fv', value: [] },
@@ -286,8 +338,10 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 			lassoOverrideClassIds:	{ type: "fv", value: new Float32Array(MAX_LASSO_CLASS_OVERRIDES).fill(-1) },
 			lassoOverrideSequences:	{ type: "fv", value: new Float32Array(MAX_LASSO_CLASS_OVERRIDES).fill(-1) },
 			lassoOverrideVCount:	{ type: "iv", value: new Int32Array(MAX_LASSO_CLASS_OVERRIDES).fill(0) },
-			lassoOverrideVertices:	{ type: "fv", value: new Float32Array(MAX_LASSO_CLASS_OVERRIDES * MAX_LASSO_POLYGON_VERTICES * 2).fill(0) },
-			lassoOverrideWVP:	{ type: "Matrix4fv", value: new Float32Array(MAX_LASSO_CLASS_OVERRIDES * 16).fill(0) },
+			lassoOverrideVerticesTex:	{ type: "t", value: this.lassoOverrideVerticesTexture },
+			lassoOverrideVerticesTexWidth:	{ type: "f", value: this.lassoOverrideVerticesTexture.image.width },
+			lassoOverrideWVPTex:	{ type: "t", value: this.lassoOverrideWVPTexture },
+			lassoOverrideWVPTexWidth:	{ type: "f", value: this.lassoOverrideWVPTexture.image.width },
 			uHQDepthMap:		{ type: "t", value: null },
 			toModel:			{ type: "Matrix4f", value: [] },
 			diffuse:			{ type: "fv", value: [1, 1, 1] },
@@ -411,6 +465,8 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 
 	getDefines () {
 		let defines = [];
+
+		defines.push(`#define max_lasso_polygon_vertices ${this.maxLassoPolygonVertices}`);
 
 		// Fusion mode: always evaluate per-segment overrides with raw fallback in shader.
 		defines.push('#define classification_fusion');
@@ -597,13 +653,16 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 	}
 
 	setLassoClassOverrides(entries = []) {
-		const normalized = normalizeLassoClassOverrideEntries(entries);
+		const normalized = normalizeLassoClassOverrideEntries(
+			entries,
+			this.maxLassoPolygonVertices,
+		);
 
 		const classIds = this.uniforms.lassoOverrideClassIds.value;
 		const sequences = this.uniforms.lassoOverrideSequences.value;
 		const vertexCounts = this.uniforms.lassoOverrideVCount.value;
-		const vertices = this.uniforms.lassoOverrideVertices.value;
-		const wvpValues = this.uniforms.lassoOverrideWVP.value;
+		const vertices = this.lassoOverrideVerticesTexture.image.data;
+		const wvpValues = this.lassoOverrideWVPTexture.image.data;
 
 		classIds.fill(-1);
 		sequences.fill(-1);
@@ -619,14 +678,23 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 			const view = new THREE.Matrix4().fromArray(entry.viewMatrix);
 			const projection = new THREE.Matrix4().fromArray(entry.projectionMatrix);
 			const wvp = new THREE.Matrix4().multiplyMatrices(projection, view);
-			wvpValues.set(wvp.elements, i * 16);
+			for (let col = 0; col < 4; col++) {
+				const texelBase = (i * 4 + col) * 4;
+				const matBase = col * 4;
+				wvpValues[texelBase + 0] = wvp.elements[matBase + 0];
+				wvpValues[texelBase + 1] = wvp.elements[matBase + 1];
+				wvpValues[texelBase + 2] = wvp.elements[matBase + 2];
+				wvpValues[texelBase + 3] = wvp.elements[matBase + 3];
+			}
 
 			const polygon = entry.polygonNdc;
 			vertexCounts[i] = polygon.length;
-			for (let j = 0; j < polygon.length && j < MAX_LASSO_POLYGON_VERTICES; j++) {
-				const targetIndex = (i * MAX_LASSO_POLYGON_VERTICES + j) * 2;
-				vertices[targetIndex + 0] = polygon[j].x;
-				vertices[targetIndex + 1] = polygon[j].y;
+			for (let j = 0; j < polygon.length && j < this.maxLassoPolygonVertices; j++) {
+				const texelBase = (i * this.maxLassoPolygonVertices + j) * 4;
+				vertices[texelBase + 0] = polygon[j].x;
+				vertices[texelBase + 1] = polygon[j].y;
+				vertices[texelBase + 2] = 0;
+				vertices[texelBase + 3] = 0;
 			}
 		}
 
@@ -634,8 +702,8 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 		this.uniforms.lassoOverrideClassIds.needsUpdate = true;
 		this.uniforms.lassoOverrideSequences.needsUpdate = true;
 		this.uniforms.lassoOverrideVCount.needsUpdate = true;
-		this.uniforms.lassoOverrideVertices.needsUpdate = true;
-		this.uniforms.lassoOverrideWVP.needsUpdate = true;
+		this.lassoOverrideVerticesTexture.needsUpdate = true;
+		this.lassoOverrideWVPTexture.needsUpdate = true;
 		this.dispatchEvent({
 			type: 'material_property_changed',
 			target: this,

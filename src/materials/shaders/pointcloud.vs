@@ -3,7 +3,7 @@ precision highp float;
 precision highp int;
 
 #define max_clip_polygons 8
-#define max_lasso_class_overrides 8
+#define max_lasso_class_overrides 32
 #define PI 3.141592653589793
 
 #ifndef max_lasso_polygon_vertices
@@ -473,18 +473,18 @@ vec4 lookupRawClassification(float classValue){
 }
 
 vec2 getLassoOverrideVertexNDC(int overrideIdx, int vertexIdx) {
-	int flatIndex = overrideIdx * max_lasso_polygon_vertices + vertexIdx;
-	float u = (float(flatIndex) + 0.5) / lassoOverrideVerticesTexWidth;
-	return texture2D(lassoOverrideVerticesTex, vec2(u, 0.5)).xy;
+	float u = (float(vertexIdx) + 0.5) / lassoOverrideVerticesTexWidth;
+	float v = (float(overrideIdx) + 0.5) / float(max_lasso_class_overrides);
+	return texture2D(lassoOverrideVerticesTex, vec2(u, v)).xy;
 }
 
 mat4 getLassoOverrideWVP(int overrideIdx) {
-	float base = float(overrideIdx * 4);
 	float invWidth = 1.0 / lassoOverrideWVPTexWidth;
-	vec4 c0 = texture2D(lassoOverrideWVPTex, vec2((base + 0.5) * invWidth, 0.5));
-	vec4 c1 = texture2D(lassoOverrideWVPTex, vec2((base + 1.5) * invWidth, 0.5));
-	vec4 c2 = texture2D(lassoOverrideWVPTex, vec2((base + 2.5) * invWidth, 0.5));
-	vec4 c3 = texture2D(lassoOverrideWVPTex, vec2((base + 3.5) * invWidth, 0.5));
+	float v = (float(overrideIdx) + 0.5) / float(max_lasso_class_overrides);
+	vec4 c0 = texture2D(lassoOverrideWVPTex, vec2(0.5 * invWidth, v));
+	vec4 c1 = texture2D(lassoOverrideWVPTex, vec2(1.5 * invWidth, v));
+	vec4 c2 = texture2D(lassoOverrideWVPTex, vec2(2.5 * invWidth, v));
+	vec4 c3 = texture2D(lassoOverrideWVPTex, vec2(3.5 * invWidth, v));
 	return mat4(c0, c1, c2, c3);
 }
 

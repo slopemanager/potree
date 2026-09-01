@@ -8,7 +8,7 @@ import {SegmentationScheme} from "./SegmentationScheme.js";
 import {PointSizeType, PointShape, TreeType, ElevationGradientRepeat} from "../defines.js";
 
 const MAX_SELECTED_SEGMENTS = 128;
-const MAX_LASSO_CLASS_OVERRIDES = 8;
+const MAX_LASSO_CLASS_OVERRIDES = 32;
 const DEFAULT_MAX_LASSO_POLYGON_VERTICES = 512;
 
 //
@@ -75,8 +75,8 @@ function createRawClassificationTextureMap() {
 }
 
 function createLassoOverrideVerticesTextureMap(maxLassoPolygonVertices = DEFAULT_MAX_LASSO_POLYGON_VERTICES) {
-	const texWidth = MAX_LASSO_CLASS_OVERRIDES * maxLassoPolygonVertices;
-	const texHeight = 1;
+	const texWidth = maxLassoPolygonVertices;
+	const texHeight = MAX_LASSO_CLASS_OVERRIDES;
 	const data = new Float32Array(texWidth * texHeight * 4);
 
 	const tex = new THREE.DataTexture(
@@ -96,8 +96,8 @@ function createLassoOverrideVerticesTextureMap(maxLassoPolygonVertices = DEFAULT
 }
 
 function createLassoOverrideWVPTextureMap() {
-	const texWidth = MAX_LASSO_CLASS_OVERRIDES * 4;
-	const texHeight = 1;
+	const texWidth = 4;
+	const texHeight = MAX_LASSO_CLASS_OVERRIDES;
 	const data = new Float32Array(texWidth * texHeight * 4);
 
 	const tex = new THREE.DataTexture(
@@ -679,7 +679,7 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 			const projection = new THREE.Matrix4().fromArray(entry.projectionMatrix);
 			const wvp = new THREE.Matrix4().multiplyMatrices(projection, view);
 			for (let col = 0; col < 4; col++) {
-				const texelBase = (i * 4 + col) * 4;
+				const texelBase = (i * this.lassoOverrideWVPTexture.image.width + col) * 4;
 				const matBase = col * 4;
 				wvpValues[texelBase + 0] = wvp.elements[matBase + 0];
 				wvpValues[texelBase + 1] = wvp.elements[matBase + 1];
@@ -690,7 +690,7 @@ export class PointCloudMaterial extends THREE.RawShaderMaterial {
 			const polygon = entry.polygonNdc;
 			vertexCounts[i] = polygon.length;
 			for (let j = 0; j < polygon.length && j < this.maxLassoPolygonVertices; j++) {
-				const texelBase = (i * this.maxLassoPolygonVertices + j) * 4;
+				const texelBase = (i * this.lassoOverrideVerticesTexture.image.width + j) * 4;
 				vertices[texelBase + 0] = polygon[j].x;
 				vertices[texelBase + 1] = polygon[j].y;
 				vertices[texelBase + 2] = 0;
